@@ -106,7 +106,7 @@
 
                 try {
                     // Fetch data from the API with a 5-second timeout
-                    const response = await fetch('http://ip-api.com/json/?fields=status,message,country,city,lat,lon,query', { signal: AbortSignal.timeout(5000) });
+                    const response = await fetch('https://ip-api.com/json/?fields=status,message,country,city,lat,lon,query', { signal: AbortSignal.timeout(5000) });
                     
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
@@ -148,4 +148,5 @@
         });
     </script>
 </body>
+
 </html>
