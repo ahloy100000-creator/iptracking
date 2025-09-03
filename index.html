@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Public IP Address & Location Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Ensure the map has a defined height */
+        #map {
+            height: 250px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 flex items-center justify-center min-h-screen transition-colors duration-300 py-8">
+    <div class="w-full max-w-md mx-4">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 text-center border border-gray-200 dark:border-gray-700">
+            <div class="flex justify-center items-center mb-6">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-500">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="2" y1="12" x2="22" y2="12"></line>
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                </svg>
+            </div>
+            
+            <h1 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Your Public IP Address</h1>
+            <p class="text-gray-500 dark:text-gray-400 mb-8">This is the address and approximate location visible to the world.</p>
+
+            <div id="ip-container" class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 mb-6 min-h-[60px] flex items-center justify-center">
+                <p id="ip-display" class="text-xl font-mono font-semibold text-gray-700 dark:text-gray-200 break-all">
+                    Fetching...
+                </p>
+            </div>
+            
+            <div id="map-container" class="mb-8" style="display: none;">
+                <div id="map" class="w-full rounded-lg shadow-inner border border-gray-200 dark:border-gray-700"></div>
+            </div>
+            
+            <button id="refresh-btn" class="w-full bg-indigo-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                Refresh
+            </button>
+        </div>
+        <footer class="text-center mt-6">
+            <p class="text-sm text-gray-500 dark:text-gray-400">Powered by K-Leap</p>
+        </footer>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+     crossorigin=""></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const ipDisplay = document.getElementById('ip-display');
+            const refreshBtn = document.getElementById('refresh-btn');
+            const mapContainer = document.getElementById('map-container');
+            
+            // Variables to hold map and marker instances
+            let map = null;
+            let marker = null;
+
+            /**
+             * Initializes or updates the map with the given coordinates.
+             */
+            const updateMap = (lat, lon) => {
+                mapContainer.style.display = 'block'; // Make the map container visible
+                
+                if (!map) { // If map is not initialized, create it
+                    map = L.map('map').setView([lat, lon], 10);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    }).addTo(map);
+                    marker = L.marker([lat, lon]).addTo(map);
+                } else { // If map already exists, just update its view and marker
+                    map.setView([lat, lon], 10);
+                    marker.setLatLng([lat, lon]);
+                }
+            };
+            
+            /**
+             * Hides map and shows an error message for the IP.
+             */
+            const displayError = (errorMessage) => {
+                console.error("Failed to fetch IP address:", errorMessage);
+                ipDisplay.textContent = 'Could not retrieve IP';
+                ipDisplay.classList.add('text-red-500', 'font-bold');
+                mapContainer.style.display = 'none'; // Hide map on error
+            };
+
+            /**
+             * Fetches the public IP address and location data from ip-api.com
+             * and updates the UI accordingly.
+             */
+            const getPublicIp = async () => {
+                // Set UI to loading state
+                ipDisplay.textContent = 'Fetching...';
+                ipDisplay.classList.remove('text-red-500', 'font-bold');
+                refreshBtn.disabled = true;
+
+                try {
+                    // Fetch data from the API with a 5-second timeout
+                    const response = await fetch('http://ip-api.com/json/?fields=status,message,country,city,lat,lon,query', { signal: AbortSignal.timeout(5000) });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    // Check if the API call was successful
+                    if (data.status === 'success') {
+                        const ip = data.query || 'N/A';
+                        const city = data.city || 'Unknown City';
+                        const country = data.country || 'Unknown Country';
+                        
+                        // Display the formatted IP and location
+                        ipDisplay.textContent = `${ip} (${city}, ${country})`;
+                        
+                        // Update the map if lat/lon are available
+                        if (data.lat && data.lon) {
+                            updateMap(data.lat, data.lon);
+                        } else {
+                            mapContainer.style.display = 'none'; // Hide map if no coords
+                        }
+                    } else {
+                        throw new Error(data.message || 'API returned an error.');
+                    }
+                } catch (error) {
+                    displayError(error);
+                } finally {
+                    // Re-enable the refresh button
+                    refreshBtn.disabled = false;
+                }
+            };
+
+            // Add click event listener to the refresh button
+            refreshBtn.addEventListener('click', getPublicIp);
+
+            // Perform initial fetch when the page loads
+            getPublicIp();
+        });
+    </script>
+</body>
+</html>
